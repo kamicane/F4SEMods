@@ -1,0 +1,7 @@
+build/*
+/.vs
+*.temp
+*.tmp
+.github
+compile_commands.json
+.cache

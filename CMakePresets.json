@@ -1,0 +1,73 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "x64_OG",
+      "displayName": "x64 (CommonLibF4_OG)",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build64_OG",
+      "cacheVariables": {
+        "COMMONLIBF4_VARIANT": "OG",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+      }
+    },
+    {
+      "name": "x64_AE",
+      "displayName": "x64 (CommonLibF4_AE)",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build64_AE",
+      "cacheVariables": {
+        "COMMONLIBF4_VARIANT": "AE",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+      }
+    },
+    {
+      "name": "SaveUtil-AE",
+      "displayName": "SaveUtil (AE)",
+      "inherits": "x64_AE",
+      "binaryDir": "${sourceDir}/build/SaveUtil-AE",
+      "cacheVariables": {
+        "PROJECT_ID": "SaveUtil",
+        "PROJECT_VERSION": "1.0.0"
+      }
+    },
+    {
+      "name": "SaveUtil-OG",
+      "displayName": "SaveUtil (OG)",
+      "inherits": "x64_OG",
+      "binaryDir": "${sourceDir}/build/SaveUtil-OG",
+      "cacheVariables": {
+        "PROJECT_ID": "SaveUtil",
+        "PROJECT_VERSION": "1.0.0"
+      }
+    },
+    {
+      "name": "ConsoleHistory-AE",
+      "displayName": "ConsoleHistory (AE)",
+      "inherits": "x64_AE",
+      "binaryDir": "${sourceDir}/build/ConsoleHistory-AE",
+      "cacheVariables": {
+        "PROJECT_ID": "ConsoleHistory",
+        "PROJECT_VERSION": "1.0.0"
+      }
+    },
+    {
+      "name": "ConsoleHistory-OG",
+      "displayName": "ConsoleHistory (OG)",
+      "inherits": "x64_OG",
+      "binaryDir": "${sourceDir}/build/ConsoleHistory-OG",
+      "cacheVariables": {
+        "PROJECT_ID": "ConsoleHistory",
+        "PROJECT_VERSION": "1.0.0"
+      }
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+BasedOnStyle: Mozilla
+
+Standard: Latest
+
+TabWidth: 2
+UseTab: ForContinuationAndIndentation
+ColumnLimit: 120
+
+KeepEmptyLines:
+  AtStartOfBlock: false
+
+SkipMacroDefinitionBody: true
+
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+AllowShortLambdasOnASingleLine: Inline
+Cpp11BracedListStyle: false
+AlignAfterOpenBracket: BlockIndent
+AlignArrayOfStructures: None
+AlignOperands: DontAlign
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+# BinPackLongBracedList: false # @v21
+# SpaceAfterOperatorKeyword: true # @v21
+RemoveEmptyLinesInUnwrappedLines: true
+BinPackArguments: false
+BinPackParameters: OnePerLine
+
+InsertTrailingCommas: Wrapped
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: MultiLine
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterObjCDeclaration: false
+  AfterStruct: false
+  AfterUnion: true
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+BreakTemplateDeclarations: Yes
+BreakAfterAttributes: Never
+
+NamespaceIndentation: All
+PackConstructorInitializers: Never
+
+BreakAfterReturnType: Automatic
+PenaltyBreakAssignment: 65533 # The penalty for breaking around an assignment operator.
+PenaltyBreakBeforeFirstCallParameter: 1 # The penalty for breaking a function call after call(.
+PenaltyBreakBeforeMemberAccess: 4 # The penalty for breaking before a member access operator (., ->).
+PenaltyBreakComment: 5 # The penalty for each line break introduced inside a comment.
+PenaltyBreakFirstLessLess: 6 # The penalty for breaking before the first <<.
+PenaltyBreakOpenParenthesis: 2 # The penalty for breaking after (.
+PenaltyBreakScopeResolution: 65534 # The penalty for breaking after ::.
+PenaltyBreakString: 7 # The penalty for each line break introduced inside a string literal.
+PenaltyBreakTemplateDeclaration: 65532 # The penalty for breaking after template declaration.
+PenaltyExcessCharacter: 9 # The penalty for each character outside of the column limit.
+PenaltyIndentedWhitespace: 8 # Penalty for each character of whitespace indentation (counted relative to leading non-whitespace column).
+PenaltyReturnTypeOnItsOwnLine: 65535 # Penalty for putting the return type of a function onto its own line.
+
+# AlwaysBreakAfterReturnType: #depr
+# AlwaysBreakAfterDeclarationReturnType: #depr
+# AlwaysBreakAfterDefinitionReturnType: #depr
+
+RemoveParentheses: ReturnStatement
+SeparateDefinitionBlocks: Always
+SortIncludes: Never
+SpaceBeforeCpp11BracedList: true
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterFunctionDeclarationName: true
+  AfterFunctionDefinitionName: true
+  AfterPlacementOperator: true
+  AfterOverloadedOperator: true
+SpaceInEmptyBlock: true
+
+IndentPPDirectives: None
+IndentRequiresClause: false

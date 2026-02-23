@@ -1,0 +1,86 @@
+CompileFlags:
+  Add: [-std:c++latest, -Wno-trigraphs]
+  CompilationDatabase: ./
+Diagnostics:
+  MissingIncludes: None
+  UnusedIncludes: Strict
+  Suppress:
+    - "standalone_class_nested_name_specifier"
+  Includes:
+    IgnoreHeader:
+      - F4SE/F4SE\.h
+      - Rel/Relocation\.h
+
+      - utf8/cpp17\.h
+      - utf8/cpp11\.h
+
+      - winnt\.h
+      - wchar\.h
+      - stdio\.h
+      - stdlib\.h
+      - winreg\.h
+      - winnls\.h
+      - jobapi2\.h
+      - fileapi\.h
+      - winbase\.h
+      - basetsd\.h
+      - winerror\.h
+      - synchapi\.h
+      - minwindef\.h
+      - shlobj_core\.h
+      - handleapi\.h
+      - memoryapi\.h
+      - processenv\.h
+      - wtypesbase\.h
+      - wow64apiset\.h
+      - consoleapi2\.h
+      - libloaderapi\.h
+      - stringapiset\.h
+      - errhandlingapi\.h
+      - securitybaseapi\.h
+      - processthreadsapi\.h
+
+  ClangTidy:
+    # FastCheckFilter: None
+
+    Add:
+      - modernize-*
+      - readability-qualified-auto
+      - cppcoreguidelines-*
+      - readability-*
+      - bugprone-*
+      # - readability-identifier-naming.*
+    Remove:
+      - cppcoreguidelines-avoid-magic-numbers # imagine enabling this in RE
+      - readability-magic-numbers
+      - modernize-use-trailing-return-type
+      - modernize-use-nodiscard
+      - cppcoreguidelines-pro-type-reinterpret-cast
+      - cppcoreguidelines-avoid-non-const-global-variables
+      - cppcoreguidelines-owning-memory
+      - readability-implicit-bool-conversion
+      - readability-braces-around-statements
+      - readability-function-cognitive-complexity
+      - cppcoreguidelines-avoid-do-while
+      - readability-use-anyofallof
+      - bugprone-easily-swappable-parameters
+    CheckOptions:
+      cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
+      readability-identifier-length.IgnoredVariableNames: "^(it|id|ui)$"
+    #   readability-identifier-naming.VariableCase: lower_case
+    #   readability-identifier-naming.ClassCase: lower_case
+    #   readability-identifier-naming.StructCase: lower_case
+    #   readability-identifier-naming.UnionCase: lower_case
+    #   readability-identifier-naming.EnumCase: lower_case
+    #   readability-identifier-naming.FunctionCase: lower_case
+    #   readability-identifier-naming.ClassMemberCase: lower_case
+    #   readability-identifier-naming.ClassMemberPrefix: s_
+    #   readability-identifier-naming.PrivateMemberCase: lower_case
+    #   readability-identifier-naming.ParameterCase: lower_case
+    #   readability-identifier-naming.ConstantParameterCase: lower_case
+    #   readability-identifier-naming.StaticConstantCase: UPPER_CASE
+    #   readability-identifier-naming.LocalConstantCase: lower_case
+    #   readability-identifier-naming.ConstantCase: UPPER_CASE
+    #   readability-identifier-naming.ConstexprVariableCase: lower_case
+    #   readability-identifier-naming.TemplateParameter: CamelCase
+    #   readability-identifier-naming.Namespace: lower_case

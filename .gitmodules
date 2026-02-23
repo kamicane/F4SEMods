@@ -1,0 +1,8 @@
+[submodule "extern/CommonLibF4_OG"]
+	path = extern/CommonLibF4_OG
+	url = https://github.com/kamicane/CommonLibF4
+	branch = original
+[submodule "extern/CommonLibF4_AE"]
+	path = extern/CommonLibF4_AE
+	url = https://github.com/kamicane/CommonLibF4
+	branch = anniversary
