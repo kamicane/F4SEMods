@@ -36,10 +36,6 @@ namespace Menu {
 		}
 
 	private:
-		struct InitData {
-			std::string title, text;
-		};
-
 		std::unique_ptr<RE::BSGFxShaderFXTarget> Background_mc { nullptr };
 
 		inline static std::string TextValue;

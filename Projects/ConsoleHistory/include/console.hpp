@@ -166,7 +166,7 @@ namespace Console {
 		std::string fileLine;
 		while (std::getline(*histFile, fileLine)) {
 			lastLines.push_back(fileLine);
-			if (lastLines.size() > historySize) lastLines.pop_front();
+			if (lastLines.size() > static_cast<std::size_t>(historySize)) lastLines.pop_front();
 		}
 
 		// Truncate and rewrite
