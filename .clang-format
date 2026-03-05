@@ -14,7 +14,7 @@ SkipMacroDefinitionBody: true
 PointerAlignment: Left
 ReferenceAlignment: Left
 
-AllowShortLambdasOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: Empty
 Cpp11BracedListStyle: false
 AlignAfterOpenBracket: BlockIndent
 AlignArrayOfStructures: None

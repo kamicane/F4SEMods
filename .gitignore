@@ -1,7 +1,16 @@
-build/*
+build
+release
+Projects/*/F4SE
 /.vs
 *.temp
 *.tmp
 .github
 compile_commands.json
 .cache
+*.pex
+*.dll
+*.zip
+RECOVER_*
+_*
+tasks.json
+*.swf

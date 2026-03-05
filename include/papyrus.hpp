@@ -1,386 +1,563 @@
 #pragma once
 
+#include "internal.hpp"
 #include "util.hpp"
-#include "save_backport.hpp"
+#include "backports.hpp"
+#include "menu-text-input.hpp"
 
 namespace Papyrus {
-	using BSLM = RE::BGSSaveLoadManager;
 
-	namespace Internal {
-		inline void SetPlayerId (std::uint32_t low) {
-			auto* bslm = BSLM::GetSingleton();
-			auto id = static_cast<std::uint64_t>(low);
-			bslm->currentPlayerID = id;
-		}
-
-		inline std::uint32_t GetPlayerId () {
-			auto* bslm = BSLM::GetSingleton();
-
-			auto id = bslm->currentPlayerID;
-			auto low = static_cast<std::uint32_t>(id & 0xFFFFFFFFULL);
-
-			return low;
-		}
-
-		inline std::string GetCallerName (RE::BSScript::IVirtualMachine& a_vm, std::uint32_t a_stackID) {
-			RE::BSTSmartPointer<RE::BSScript::Stack> stack;
-			static std::string fallback = "Unknown";
-
-			auto* vmInternal = reinterpret_cast<RE::BSScript::Internal::VirtualMachine*>(&a_vm);
-			if (!vmInternal) {
-				return fallback;
-			}
-
-			if (!vmInternal->GetStackByID(a_stackID, stack) || !stack || !stack->top) {
-				return fallback;
-			}
-
-			auto* frame = stack->top;
-			if (!frame) {
-				return fallback;
-			}
-
-			auto* caller = frame->previousFrame;
-			if (caller && caller->owningObjectType) {
-				const char* name = caller->owningObjectType->GetName();
-				return name ? std::string { name } : fallback;
-			}
-
-			return fallback;
-		}
-	}
-
-	inline SaveBackport::BGSSaveLoadFileEntry g_load_entry {};
+	inline RE::BGSSaveLoadFileEntry g_load_entry {};
 	inline std::string g_load_name;
 
 	inline void Test (std::monostate mono) {
 		spdlog::debug("TEST THIS SHIT");
 	}
 
+	inline void GetSettings (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
+		std::monostate mono,
+		std::string_view section,
+		const RE::BSScript::Variable* structVar
+	) {
+		spdlog::debug("GetSettings");
+		auto name = Internal::GetCallerName(vm, stackId);
+		spdlog::debug("GetSettings called ({}): section={}", name, section);
+
+		if (name.empty()) return;
+		if (!structVar) return;
+		if (!structVar->is<RE::BSScript::Struct>()) return;
+
+		auto structValue = RE::BSScript::get<RE::BSScript::Struct>(*structVar);
+		if (!structValue || !structValue->type) return;
+
+		for (const auto& field : structValue->type->varNameIndexMap) {
+			auto fieldName = field.first;
+			auto fieldIndex = field.second;
+			if (fieldIndex >= structValue->type->variables.size()) continue;
+
+			auto fieldType = structValue->type->variables[fieldIndex].varType.GetRawType();
+			auto& fieldValue = structValue->variables[fieldIndex]; // NOLINT
+
+			switch (fieldType) {
+				case RE::BSScript::TypeInfo::RawType::kString: {
+					auto defaultValue = RE::BSScript::get<RE::BSFixedString>(fieldValue);
+
+					auto value = Util::GetIniString(name, section, fieldName.c_str(), defaultValue.c_str());
+					RE::BSScript::PackVariable(fieldValue, RE::BSFixedString(value.c_str()));
+					break;
+				}
+				case RE::BSScript::TypeInfo::RawType::kInt: {
+					auto defaultValue = RE::BSScript::get<std::int32_t>(fieldValue);
+
+					auto value = Util::GetIniInt(name, section, fieldName.c_str(), defaultValue);
+					RE::BSScript::PackVariable(fieldValue, value);
+					break;
+				}
+				case RE::BSScript::TypeInfo::RawType::kFloat: {
+					auto defaultValue = RE::BSScript::get<float>(fieldValue);
+
+					auto value = Util::GetIniFloat(name, section, fieldName.c_str(), defaultValue);
+					RE::BSScript::PackVariable(fieldValue, value);
+					break;
+				}
+				case RE::BSScript::TypeInfo::RawType::kBool: {
+					auto defaultValue = RE::BSScript::get<bool>(fieldValue);
+
+					auto value = Util::GetIniBool(name, section, fieldName.c_str(), defaultValue);
+					RE::BSScript::PackVariable(fieldValue, value);
+					break;
+				}
+				default:
+					break;
+			}
+		}
+	}
+
+	inline void SetSettings (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
+		std::monostate mono,
+		std::string_view section,
+		const RE::BSScript::Variable* structVar
+	) {
+		auto name = Internal::GetCallerName(vm, stackId);
+		spdlog::debug("SetSettings called ({}): section={}", name, section);
+
+		if (name.empty()) return;
+		if (!structVar) return;
+		if (!structVar->is<RE::BSScript::Struct>()) return;
+
+		auto structValue = RE::BSScript::get<RE::BSScript::Struct>(*structVar);
+		if (!structValue || !structValue->type) return;
+
+		auto ini = Util::GetIniPtr(name);
+		auto section_s = std::string(section);
+
+		for (const auto& field : structValue->type->varNameIndexMap) {
+			auto fieldName = field.first;
+			auto fieldIndex = field.second;
+			if (fieldIndex >= structValue->type->variables.size()) continue;
+
+			auto fieldType = structValue->type->variables[fieldIndex].varType.GetRawType();
+			auto& fieldValue = structValue->variables[fieldIndex]; // NOLINT
+
+			auto key_s = std::string(fieldName.c_str());
+
+			switch (fieldType) {
+				case RE::BSScript::TypeInfo::RawType::kString: {
+					auto value = RE::BSScript::get<RE::BSFixedString>(fieldValue);
+
+					ini->SetValue(section_s.c_str(), key_s.c_str(), value.c_str());
+					break;
+				}
+				case RE::BSScript::TypeInfo::RawType::kInt: {
+					auto value = RE::BSScript::get<std::int32_t>(fieldValue);
+
+					auto value_s = std::to_string(value);
+					ini->SetValue(section_s.c_str(), key_s.c_str(), value_s.c_str());
+					break;
+				}
+				case RE::BSScript::TypeInfo::RawType::kFloat: {
+					auto value = RE::BSScript::get<float>(fieldValue);
+
+					auto value_s = std::to_string(value);
+					ini->SetValue(section_s.c_str(), key_s.c_str(), value_s.c_str());
+					break;
+				}
+				case RE::BSScript::TypeInfo::RawType::kBool: {
+					auto value = RE::BSScript::get<bool>(fieldValue);
+
+					ini->SetValue(section_s.c_str(), key_s.c_str(), value ? "true" : "false");
+					break;
+				}
+				default:
+					break;
+			}
+		}
+	}
+
 	inline void ShowMessage (
 		std::monostate mono,
 		std::string_view fmtMessage,
-		std::string_view as1,
-		std::string_view as2,
-		std::string_view as3,
-		std::string_view as4,
-		std::string_view as5,
-		std::string_view as6,
-		std::string_view as7,
-		std::string_view as8,
-		std::string_view as9
+		const RE::BSScript::Variable* var1,
+		const RE::BSScript::Variable* var2,
+		const RE::BSScript::Variable* var3,
+		const RE::BSScript::Variable* var4,
+		const RE::BSScript::Variable* var5,
+		const RE::BSScript::Variable* var6,
+		const RE::BSScript::Variable* var7,
+		const RE::BSScript::Variable* var8,
+		const RE::BSScript::Variable* var9
 	) {
-		spdlog::debug("ShowMessage called with message={}, as1={}", fmtMessage, as1);
-		// no sound, no throttle, not a warning
-		std::string fmtString = fmt::format(fmt::runtime(fmtMessage), as1, as2, as3, as4, as5, as6, as7, as8, as9);
-
-		spdlog::debug("ShowMessage formatted = {}", fmtString);
+		std::string fmtString = Internal::Format(fmtMessage, var1, var2, var3, var4, var5, var6, var7, var8, var9);
 
 		RE::SendHUDMessage::ShowHUDMessage(fmtString.c_str(), nullptr, false, false);
 	}
 
-	std::string Fmt (
+	std::string Format (
 		std::monostate mono,
 		std::string_view fmtStr,
-		std::string_view as1,
-		std::string_view as2,
-		std::string_view as3,
-		std::string_view as4,
-		std::string_view as5,
-		std::string_view as6,
-		std::string_view as7,
-		std::string_view as8,
-		std::string_view as9
+		const RE::BSScript::Variable* var1,
+		const RE::BSScript::Variable* var2,
+		const RE::BSScript::Variable* var3,
+		const RE::BSScript::Variable* var4,
+		const RE::BSScript::Variable* var5,
+		const RE::BSScript::Variable* var6,
+		const RE::BSScript::Variable* var7,
+		const RE::BSScript::Variable* var8,
+		const RE::BSScript::Variable* var9
 	) {
-		spdlog::debug("Fmt called with message={}, as1={}", fmtStr, as1);
-
-		return fmt::format(fmt::runtime(fmtStr), as1, as2, as3, as4, as5, as6, as7, as8, as9);
+		auto fmtString = Internal::Format(fmtStr, var1, var2, var3, var4, var5, var6, var7, var8, var9);
+		return fmtString;
 	}
 
-	inline void LogInfo (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline void ConsoleLog (
 		std::monostate mono,
 		std::string_view fmtStr,
-		std::string_view as1,
-		std::string_view as2,
-		std::string_view as3,
-		std::string_view as4,
-		std::string_view as5,
-		std::string_view as6,
-		std::string_view as7,
-		std::string_view as8,
-		std::string_view as9
+		const RE::BSScript::Variable* var1,
+		const RE::BSScript::Variable* var2,
+		const RE::BSScript::Variable* var3,
+		const RE::BSScript::Variable* var4,
+		const RE::BSScript::Variable* var5,
+		const RE::BSScript::Variable* var6,
+		const RE::BSScript::Variable* var7,
+		const RE::BSScript::Variable* var8,
+		const RE::BSScript::Variable* var9
 	) {
-		auto scriptName = Internal::GetCallerName(a_vm, a_stackID);
-		auto logger = Util::GetLogger(scriptName);
+		auto* console = RE::ConsoleLog::GetSingleton();
+		if (!console) return;
 
-		if (logger && logger->level() > spdlog::level::info) {
-			logger->info(fmt::runtime(fmtStr), as1, as2, as3, as4, as5, as6, as7, as8, as9);
+		auto fmtString = Internal::Format(fmtStr, var1, var2, var3, var4, var5, var6, var7, var8, var9);
+
+		auto consoleStr = fmtString + "\n";
+		console->AddString(consoleStr.c_str());
+	}
+
+	inline void LogI (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
+		std::monostate mono,
+		std::string_view fmtStr,
+		const RE::BSScript::Variable* var1,
+		const RE::BSScript::Variable* var2,
+		const RE::BSScript::Variable* var3,
+		const RE::BSScript::Variable* var4,
+		const RE::BSScript::Variable* var5,
+		const RE::BSScript::Variable* var6,
+		const RE::BSScript::Variable* var7,
+		const RE::BSScript::Variable* var8,
+		const RE::BSScript::Variable* var9
+	) {
+		auto scriptName = Internal::GetCallerName(vm, stackId);
+		auto logger = Util::GetLogger(scriptName);
+		if (logger && logger->level() <= spdlog::level::info) {
+			auto fmtString = Internal::Format(fmtStr, var1, var2, var3, var4, var5, var6, var7, var8, var9);
+			logger->info("{}", fmtString);
 		}
 	}
 
-	inline void LogWarn (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline void LogW (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
 		std::monostate mono,
 		std::string_view fmtStr,
-		std::string_view as1,
-		std::string_view as2,
-		std::string_view as3,
-		std::string_view as4,
-		std::string_view as5,
-		std::string_view as6,
-		std::string_view as7,
-		std::string_view as8,
-		std::string_view as9
+		const RE::BSScript::Variable* var1,
+		const RE::BSScript::Variable* var2,
+		const RE::BSScript::Variable* var3,
+		const RE::BSScript::Variable* var4,
+		const RE::BSScript::Variable* var5,
+		const RE::BSScript::Variable* var6,
+		const RE::BSScript::Variable* var7,
+		const RE::BSScript::Variable* var8,
+		const RE::BSScript::Variable* var9
 	) {
-		auto scriptName = Internal::GetCallerName(a_vm, a_stackID);
+		auto scriptName = Internal::GetCallerName(vm, stackId);
 		auto logger = Util::GetLogger(scriptName);
-		if (logger && logger->level() > spdlog::level::warn) {
-			logger->warn(fmt::runtime(fmtStr), as1, as2, as3, as4, as5, as6, as7, as8, as9);
+		if (logger && logger->level() <= spdlog::level::warn) {
+			auto fmtString = Internal::Format(fmtStr, var1, var2, var3, var4, var5, var6, var7, var8, var9);
+			logger->warn("{}", fmtString);
 		}
 	}
 
-	inline void LogDebug (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline void LogD (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
 		std::monostate mono,
 		std::string_view fmtStr,
-		std::string_view as1,
-		std::string_view as2,
-		std::string_view as3,
-		std::string_view as4,
-		std::string_view as5,
-		std::string_view as6,
-		std::string_view as7,
-		std::string_view as8,
-		std::string_view as9
+		const RE::BSScript::Variable* var1,
+		const RE::BSScript::Variable* var2,
+		const RE::BSScript::Variable* var3,
+		const RE::BSScript::Variable* var4,
+		const RE::BSScript::Variable* var5,
+		const RE::BSScript::Variable* var6,
+		const RE::BSScript::Variable* var7,
+		const RE::BSScript::Variable* var8,
+		const RE::BSScript::Variable* var9
 	) {
-		auto scriptName = Internal::GetCallerName(a_vm, a_stackID);
+		auto scriptName = Internal::GetCallerName(vm, stackId);
 		auto logger = Util::GetLogger(scriptName);
-		if (logger && logger->level() > spdlog::level::debug) {
-			logger->debug(fmt::runtime(fmtStr), as1, as2, as3, as4, as5, as6, as7, as8, as9);
+		if (logger && logger->level() <= spdlog::level::debug) {
+			auto fmtString = Internal::Format(fmtStr, var1, var2, var3, var4, var5, var6, var7, var8, var9);
+			logger->debug("{}", fmtString);
 		}
 	}
 
-	inline void LogError (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline void LogE (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
 		std::monostate mono,
 		std::string_view fmtStr,
-		std::string_view as1,
-		std::string_view as2,
-		std::string_view as3,
-		std::string_view as4,
-		std::string_view as5,
-		std::string_view as6,
-		std::string_view as7,
-		std::string_view as8,
-		std::string_view as9
+		const RE::BSScript::Variable* var1,
+		const RE::BSScript::Variable* var2,
+		const RE::BSScript::Variable* var3,
+		const RE::BSScript::Variable* var4,
+		const RE::BSScript::Variable* var5,
+		const RE::BSScript::Variable* var6,
+		const RE::BSScript::Variable* var7,
+		const RE::BSScript::Variable* var8,
+		const RE::BSScript::Variable* var9
 	) {
-		auto scriptName = Internal::GetCallerName(a_vm, a_stackID);
+		auto scriptName = Internal::GetCallerName(vm, stackId);
 		auto logger = Util::GetLogger(scriptName);
-		if (logger && logger->level() > spdlog::level::err) {
-			logger->error(fmt::runtime(fmtStr), as1, as2, as3, as4, as5, as6, as7, as8, as9);
+		if (logger && logger->level() <= spdlog::level::err) {
+			auto fmtString = Internal::Format(fmtStr, var1, var2, var3, var4, var5, var6, var7, var8, var9);
+			logger->error("{}", fmtString);
 		}
+	}
+
+	inline std::string GetCallerName (RE::BSScript::IVirtualMachine& vm, std::uint32_t stackId, std::monostate mono) {
+		auto name = Internal::GetCallerName(vm, stackId);
+		spdlog::debug("[GetCallerName] Caller name is {}", name);
+		return name;
+	}
+
+	inline std::string Register (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
+		std::monostate mono,
+		std::string_view mapName
+	) {
+		auto scriptName = Internal::GetCallerNameRaw(vm, stackId);
+		if (scriptName.empty() || scriptName == "Unknown") return {};
+		return Internal::RegisterCallerName(scriptName, mapName);
 	}
 
 	inline std::string GetPlayerId (std::monostate mono) {
-		auto playerId = Internal::GetPlayerId();
-		if (playerId == 0) {
-			playerId = Util::RandomUInt32();
-			Internal::SetPlayerId(playerId);
-		}
-
-		return fmt::format("{:08X}", playerId);
+		return fmt::format("{:08X}", Internal::GetPlayerId());
 	}
 
 	inline std::string SetPlayerId (std::monostate mono, std::string_view playerIdHex) {
 		std::uint32_t playerId = 0;
-		if (!playerIdHex.empty()) {
+
+		if (playerIdHex.empty()) {
+			playerId = Util::RandomUInt32();
+		} else {
 			playerId = Util::Uint32FromHex(playerIdHex);
+			if (playerId == 0) {
+				spdlog::error("[SetPlayerId]: invalid player id provided: {}", playerIdHex);
+
+				playerId = Util::RandomUInt32();
+			}
 		}
 
-		if (playerId == 0) playerId = Util::RandomUInt32();
-
 		Internal::SetPlayerId(playerId);
-		spdlog::debug("SetPlayerId: playerId={:08X}", playerId);
+		spdlog::info("[SetPlayerId]: new player id is {:08X}", playerId);
 
 		return fmt::format("{:08X}", playerId);
 	}
 
+	inline bool UpdatePowerArmor3d (std::monostate mono, RE::TESObjectREFR* ref) {
+		if (!ref) return false;
+		RE::PowerArmor::SyncFurnitureVisualsToInventory(ref, true, nullptr, false);
+		return true;
+	}
+
+	// no workie booo
 	// bool IsSavingAllowed (std::monostate mono) {
 	// 	auto bslm = BSLM::GetSingleton();
 	// 	logger->debug("IsSaveAllowed called : {}", bslm->savingAllowed);
 	// 	return bslm->savingAllowed;
 	// }
 
-	inline void QueueSave (std::monostate mono) {
-		spdlog::debug("QueueSave called");
+	inline void QueueForceSave (std::monostate mono) {
+		auto* bslm = BGSSaveLoadManagerEx::GetSingleton();
 
-		auto* bslm = BSLM::GetSingleton();
-
-		SaveBackport::GetBufferSceneScreenShot()(reinterpret_cast<void*>(bslm));
-		bslm->QueueSaveLoadTask(BSLM::QUEUED_TASK::kForceSave);
+		bslm->BufferSceneScreenShot();
+		bslm->QueueSaveLoadTask(BGSSaveLoadManagerEx::QUEUED_TASK::kForceSave);
 	}
 
-	inline void LoadGame (std::monostate mono, std::string_view file_name) {
-		spdlog::debug("LoadGame called : {}", file_name);
+	inline void QueueAutoSave (std::monostate mono) {
+		auto* bslm = BGSSaveLoadManagerEx::GetSingleton();
 
-		auto* bslm = BSLM::GetSingleton();
+		bslm->BufferSceneScreenShot();
+		bslm->QueueSaveLoadTask(BGSSaveLoadManagerEx::QUEUED_TASK::kAutoSave);
+	}
 
-		g_load_name = std::string { file_name };
+	inline void QueueLoadGame (std::monostate mono, std::string_view saveName) {
+		auto* bslm = BGSSaveLoadManagerEx::GetSingleton();
+
+		auto playerId = Internal::EnsurePlayerId();
+		auto sanitizedSaveName = Util::SanitizeSaveName(saveName);
+		g_load_name = fmt::format("{} [_{:08X}]", sanitizedSaveName, playerId);
+
 		g_load_entry.fileName = g_load_name.c_str();
 
-		bslm->queuedEntryToLoad = reinterpret_cast<RE::BGSSaveLoadFileEntry*>(&g_load_entry);
-		bslm->QueueSaveLoadTask(BSLM::QUEUED_TASK::kLoadGame);
+		bslm->queuedEntryToLoad = &g_load_entry;
+		bslm->QueueSaveLoadTask(BGSSaveLoadManagerEx::QUEUED_TASK::kLoadGame);
 	}
 
-	inline void LoadLastSave (std::monostate mono) {
-		spdlog::debug("LoadLastSave called");
-
-		auto* bslm = BSLM::GetSingleton();
-		bslm->QueueSaveLoadTask(BSLM::QUEUED_TASK::kLoadMostRecentSave);
+	inline void QueueSaveAndQuitToDesktop (std::monostate mono) {
+		auto* bslm = BGSSaveLoadManagerEx::GetSingleton();
+		bslm->BufferSceneScreenShot();
+		bslm->QueueSaveLoadTask(BGSSaveLoadManagerEx::QUEUED_TASK::kSaveAndQuitToDesktop);
 	}
 
-	inline void OpenCustomMenu (std::monostate mono) {
-		spdlog::debug("OpenCustomMenu called");
-
-		if (auto* UIMessageQueue = RE::UIMessageQueue::GetSingleton()) {
-			UIMessageQueue->AddMessage("CustomMenu", RE::UI_MESSAGE_TYPE::kShow);
-		}
+	inline void QueueLoadLastSave (std::monostate mono) {
+		auto* bslm = BGSSaveLoadManagerEx::GetSingleton();
+		bslm->QueueSaveLoadTask(BGSSaveLoadManagerEx::QUEUED_TASK::kLoadMostRecentSave);
 	}
 
-	inline std::string PadStart (std::monostate mono, std::string_view input, std::uint16_t maxLen, std::string_view padChar) {
-		return Util::PadStart(input, maxLen, padChar);
+	inline bool OpenTextInputMenu_ (RE::BSScript::IVirtualMachine& vm, std::uint32_t stackId, std::monostate mono) {
+		spdlog::debug("OpenTextInputMenu_ called");
+
+		// Events::TextInput.once(Events::TextInputType::AcceptCancel, [vmPtr = &vm, stackId] (std::string_view textValue) {
+		// 	if (vmPtr) {
+		// 		const bool waiting = vmPtr->IsWaitingOnLatent(stackId);
+		// 		spdlog::debug("TextInputMenuSink::ProcessEvent closing: stackID={}, waitingOnLatent={}", stackId, waiting);
+
+		// 		RE::BSScript::Variable ret;
+		// 		RE::BSScript::PackVariable(ret, true);
+		// 		vmPtr->ReturnFromLatent(stackId, ret);
+		// 	}
+
+		// 	return true;
+		// });
+
+		Menu::TextInput::Open("foo", "bar");
+
+		return true;
 	}
 
-	inline std::string PadEnd (std::monostate mono, std::string_view input, std::uint16_t maxLen, std::string_view padChar) {
-		return Util::PadEnd(input, maxLen, padChar);
+	inline std::string GetLastTextInputResult_ (std::monostate mono) {
+		return {};
 	}
 
 	inline bool SaveGame (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
 		std::monostate mono,
-		std::string_view file_name
+		std::string_view saveName,
+		std::string_view successMessage,
+		std::string_view failureMessage
 	) {
-		spdlog::debug("SaveGame (latent) called : {}", file_name);
+		auto fmtSuccessMessage = fmt::format(fmt::runtime(successMessage), saveName);
+		auto fmtFailureMessage = fmt::format(fmt::runtime(failureMessage), saveName);
 
-		const auto stackID = a_stackID;
-		auto* vmPtr = &a_vm;
-
-		std::string localName = Util::SanitizeFileName(file_name, true);
-
-		F4SE::GetTaskInterface()->AddTask([stackID, vmPtr, localName] () mutable {
-			auto* bslm = BSLM::GetSingleton();
-			SaveBackport::GetBufferSceneScreenShot()(reinterpret_cast<void*>(bslm));
-
-			auto playerId = Internal::GetPlayerId();
-			if (playerId == 0) {
-				playerId = Util::RandomUInt32();
-				Internal::SetPlayerId(playerId);
-			}
-
-			std::string finalName = fmt::format("{} [_{:08X}]", localName, playerId);
-
-			const bool res = SaveBackport::GetSaveGame()(reinterpret_cast<void*>(bslm), finalName.c_str(), 0, 0, false);
-			spdlog::debug("SaveGame task finished: result={}", res);
-
+		Internal::SaveGame(saveName, fmtSuccessMessage, fmtFailureMessage, [vmPtr = &vm, stackId] (bool wasSaved) {
 			RE::BSScript::Variable ret;
-			RE::BSScript::PackVariable(ret, res);
+			RE::BSScript::PackVariable(ret, wasSaved);
 			if (vmPtr) {
-				vmPtr->ReturnFromLatent(stackID, ret);
+				vmPtr->ReturnFromLatent(stackId, ret);
 			}
 		});
 
 		return true;
 	}
 
-	inline void ListSaves (std::monostate mono) {
-		auto* bslm = BSLM::GetSingleton();
-		bslm->QueueSaveLoadTask(BSLM::QUEUED_TASK::kBuildSaveGameList);
+	// needs proper implementation BuildSaveGameList(). currently only AE.
+	// inline void ListSaves (std::monostate mono)
 
-		if (!bslm->isSaveListBuilt) {
-			spdlog::debug("Save list not built yet (queued rebuild).");
-			return;
-		}
+	inline bool LoadSettings (RE::BSScript::IVirtualMachine& vm, std::uint32_t stackID, std::monostate mono) {
+		auto name = Internal::GetCallerName(vm, stackID);
+		spdlog::debug("LoadSettings ({})", name);
 
-		const std::uint32_t count = bslm->saveGameCount;
-		spdlog::debug("Save list has {} entries (build id {}).", count, bslm->saveGameListBuildID);
+		if (name.empty()) return false;
 
-		auto GetEntryFileName = [] (RE::BGSSaveLoadFileEntry* a_entry) -> const char* {
-			if (!a_entry) {
-				return nullptr;
-			}
-			const auto* bslfe = reinterpret_cast<const SaveBackport::BGSSaveLoadFileEntry*>(a_entry);
-			return bslfe->fileName;
-		};
-
-		for (std::uint32_t i = 0; i < count; ++i) {
-			auto* entry = bslm->saveGameList[i];
-			if (!entry) {
-				spdlog::debug("[{}] <null entry>", i);
-				continue;
-			}
-
-			const char* name = GetEntryFileName(entry);
-			spdlog::debug("[{}] entry ptr={} name={}", i, fmt::ptr(entry), name ? name : "<no-name>");
-		}
+		Util::LoadIni(name);
+		return true;
 	}
 
-	inline std::string ReadIni (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline bool SaveSettings (RE::BSScript::IVirtualMachine& vm, std::uint32_t stackID, std::monostate mono) {
+		auto name = Internal::GetCallerName(vm, stackID);
+		spdlog::debug("SaveSettings ({})", name);
+
+		if (name.empty()) return false;
+
+		Util::SaveIni(name);
+		return true;
+	}
+
+	inline std::string GetSettingString (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackID,
 		std::monostate mono,
 		std::string_view section,
-		std::string_view key
+		std::string_view key,
+		std::string_view defaultValue
 	) {
-		auto name = Internal::GetCallerName(a_vm, a_stackID);
-		spdlog::debug("ReadIni ({}): section={}, key={}", name, section, key);
+		auto name = Internal::GetCallerName(vm, stackID);
+		if (name.empty()) return {};
 
-		auto ini = Util::LoadIni(name);
-		return Util::ReadIni(ini, section, key);
+		return Util::GetIniString(name, section, key, defaultValue);
 	}
 
-	inline bool ReadIniBool (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline bool GetSettingBool (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackID,
 		std::monostate mono,
 		std::string_view section,
-		std::string_view key
+		std::string_view key,
+		bool defaultValue
 	) {
-		auto name = Internal::GetCallerName(a_vm, a_stackID);
-		spdlog::debug("ReadIniBool ({}): section={}, key={}", name, section, key);
+		auto name = Internal::GetCallerName(vm, stackID);
+		if (name.empty()) return {};
 
-		auto ini = Util::LoadIni(name);
-		return Util::ReadIniBool(ini, section, key, false);
+		return Util::GetIniBool(name, section, key, defaultValue);
 	}
 
-	inline void WriteIniBool (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline int32_t GetSettingInt (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackID,
+		std::monostate mono,
+		std::string_view section,
+		std::string_view key,
+		int32_t defaultValue,
+		int32_t minValue,
+		int32_t maxValue
+	) {
+		auto name = Internal::GetCallerName(vm, stackID);
+		if (name.empty()) return {};
+
+		return Util::GetIniInt(name, section, key, defaultValue, minValue, maxValue);
+	}
+
+	inline float GetSettingFloat (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackID,
+		std::monostate mono,
+		std::string_view section,
+		std::string_view key,
+		float defaultValue,
+		float minValue,
+		float maxValue
+	) {
+		auto name = Internal::GetCallerName(vm, stackID);
+		if (name.empty()) return {};
+
+		return Util::GetIniFloat(name, section, key, defaultValue, minValue, maxValue);
+	}
+
+	inline void SetSettingBool (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
 		std::monostate mono,
 		std::string_view section,
 		std::string_view key,
 		bool value
 	) {
-		auto name = Internal::GetCallerName(a_vm, a_stackID);
-		spdlog::debug("WriteIniBool ({}): section={}, key={}, value={}", name, section, key, value);
-		Util::WriteIniBool(name, section, key, value);
+		auto name = Internal::GetCallerName(vm, stackId);
+		if (name.empty()) return;
+		Util::SetIniBool(name, section, key, value);
 	}
 
-	inline void WriteIni (
-		RE::BSScript::IVirtualMachine& a_vm,
-		std::uint32_t a_stackID,
+	inline void SetSettingString (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
 		std::monostate mono,
 		std::string_view section,
 		std::string_view key,
 		std::string_view value
 	) {
-		auto name = Internal::GetCallerName(a_vm, a_stackID);
-		spdlog::debug("WriteIni ({}): section={}, key={}, value={}", name, section, key, value);
-		Util::WriteIni(name, section, key, value);
+		auto name = Internal::GetCallerName(vm, stackId);
+		if (name.empty()) return;
+		Util::SetIniString(name, section, key, value);
+	}
+
+	inline void SetSettingInt (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
+		std::monostate mono,
+		std::string_view section,
+		std::string_view key,
+		int32_t value
+	) {
+		auto name = Internal::GetCallerName(vm, stackId);
+		if (name.empty()) return;
+		Util::SetIniInt(name, section, key, value);
+	}
+
+	inline void SetSettingFloat (
+		RE::BSScript::IVirtualMachine& vm,
+		std::uint32_t stackId,
+		std::monostate mono,
+		std::string_view section,
+		std::string_view key,
+		float value
+	) {
+		auto name = Internal::GetCallerName(vm, stackId);
+		if (name.empty()) return;
+		Util::SetIniFloat(name, section, key, value);
 	}
 }

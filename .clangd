@@ -1,5 +1,7 @@
 CompileFlags:
-  Add: [-std:c++latest, -Wno-trigraphs]
+  Add:
+  - -std:c++latest
+  - -Wno-trigraphs
   CompilationDatabase: ./
 Diagnostics:
   MissingIncludes: None
@@ -8,9 +10,6 @@ Diagnostics:
     - "standalone_class_nested_name_specifier"
   Includes:
     IgnoreHeader:
-      - F4SE/F4SE\.h
-      - Rel/Relocation\.h
-
       - utf8/cpp17\.h
       - utf8/cpp11\.h
 
@@ -63,10 +62,10 @@ Diagnostics:
       - readability-function-cognitive-complexity
       - cppcoreguidelines-avoid-do-while
       - readability-use-anyofallof
+      - readability-identifier-length
       - bugprone-easily-swappable-parameters
     CheckOptions:
       cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
-      readability-identifier-length.IgnoredVariableNames: "^(it|id|ui)$"
     #   readability-identifier-naming.VariableCase: lower_case
     #   readability-identifier-naming.ClassCase: lower_case
     #   readability-identifier-naming.StructCase: lower_case

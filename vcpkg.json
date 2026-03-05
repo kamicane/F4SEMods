@@ -1,5 +1,5 @@
 {
-  "name": "saveutil-f4",
+  "name": "plugins-f4",
   "version-string": "1.0.0",
   "description": "",
   "homepage": "",
@@ -12,7 +12,8 @@
       "name": "spdlog",
       "features": [ "wchar" ]
     },
-    "simpleini"
+    "simpleini",
+    "eventpp"
   ],
   "builtin-baseline": "ce35b1a53aac26d7fcdb8ee1ef7a8e4eea02d27b"
 }

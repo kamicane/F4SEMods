@@ -1,0 +1,119 @@
+{
+	"modName": "RotatingSaves",
+	"displayName": "Rotating Saves",
+	"minMcmVersion": 1,
+	"content": [
+		{
+			"text": "<p align='center'><font size='30'>Rotating Saves</font></p>",
+			"html": true,
+			"type": "text"
+		},
+		{
+			"text": "Main",
+			"type": "section"
+		},
+		{
+			"id": "rot_save",
+			"text": "New rotating save",
+			"type": "hotkey",
+			"help": ""
+		},
+		{
+			"id": "rot_save_named",
+			"text": "New named save",
+			"type": "hotkey",
+			"help": ""
+		},
+		{
+			"id": "rot_load_last",
+			"text": "Load last save",
+			"type": "hotkey",
+			"help": ""
+		},
+		{
+			"id": "iNumSaves:Main",
+			"text": "Saves to keep",
+			"type": "slider",
+			"help": "",
+			"valueOptions": {
+				"min": 2,
+				"max": 99,
+				"step": 1,
+				"sourceType": "ModSettingInt"
+			}
+		},
+		{ "type": "spacer" },
+		{
+			"text": "Notifications",
+			"type": "section"
+		},
+		{
+			"id": "bSaveNotifications:Main",
+			"text": "Notify on save",
+			"type": "switcher",
+			"help": "",
+			"valueOptions": {
+				"sourceType": "ModSettingBool"
+			}
+		},
+		{
+			"id": "bLoadNotifications:Main",
+			"text": "Notify on load",
+			"type": "switcher",
+			"help": "",
+			"valueOptions": {
+				"sourceType": "ModSettingBool"
+			}
+		},
+		{ "type": "spacer" },
+		{
+			"text": "Strings",
+			"type": "section"
+		},
+		{
+			"id": "sSavePrefix:Strings",
+			"text": "Save prefix",
+			"type": "textinput",
+			"help": "",
+			"valueOptions": {
+				"sourceType": "ModSettingString"
+			}
+		},
+		{
+			"id": "sSaveNotification:Strings",
+			"text": "Saved notification",
+			"type": "textinput",
+			"help": "Replaces {} with the save name",
+			"valueOptions": {
+				"sourceType": "ModSettingString"
+			}
+		},
+		{
+			"id": "sLoadNotification:Strings",
+			"text": "Load notification",
+			"type": "textinput",
+			"help": "Replaces {} with the save name",
+			"valueOptions": {
+				"sourceType": "ModSettingString"
+			}
+		},
+		{
+			"id": "sNoSave:Strings",
+			"text": "No save to load notification",
+			"type": "textinput",
+			"help": "Replaces {} with the save name",
+			"valueOptions": {
+				"sourceType": "ModSettingString"
+			}
+		},
+		{
+			"id": "sCantSaveNow:Strings",
+			"text": "Can't save now notification",
+			"type": "textinput",
+			"help": "",
+			"valueOptions": {
+				"sourceType": "ModSettingString"
+			}
+		}
+	]
+}

@@ -1,11 +1,7 @@
 #pragma once
-#include <SimpleIni.h>
-#include <algorithm>
-#include <cstdint>
-#include <limits>
-#include <memory>
 
 namespace Util {
+	inline std::unordered_map<std::string, std::shared_ptr<CSimpleIniA>> g_iniMap;
 
 	std::string Trim (std::string_view input) {
 		size_t first = 0;
@@ -28,30 +24,6 @@ namespace Util {
 		return result;
 	}
 
-	std::string PadStart (std::string_view input, std::uint16_t maxLength, std::string_view padChar) {
-		auto inputStr = std::string(input);
-
-		int padCount = maxLength - static_cast<int>(input.size());
-		if (padCount <= 0) return inputStr;
-
-		std::string padding;
-		for (int i = 0; i < padCount; ++i) padding += padChar;
-
-		return padding + inputStr;
-	}
-
-	std::string PadEnd (std::string_view input, std::uint16_t maxLength, std::string_view padChar) {
-		auto inputStr = std::string(input);
-
-		int padCount = maxLength - static_cast<int>(input.size());
-		if (padCount <= 0) return inputStr;
-
-		std::string padding;
-		for (int i = 0; i < padCount; ++i) padding += padChar;
-
-		return inputStr + padding;
-	}
-
 	std::uint32_t RandomUInt32 () {
 		static std::mt19937 gen(std::random_device {}());
 		static std::uniform_int_distribution<std::uint32_t> dist(1U, 0xFFFFFFFFU);
@@ -71,7 +43,7 @@ namespace Util {
 		}
 	}
 
-	std::filesystem::path GetGamePath () {
+	std::filesystem::path GetGameDir () {
 		static std::filesystem::path cachedDir;
 
 		if (cachedDir.empty()) {
@@ -88,7 +60,7 @@ namespace Util {
 		return cachedDir;
 	}
 
-	std::filesystem::path GetMyDocumentsPath () {
+	std::filesystem::path GetMyDocumentsDir () {
 		static std::filesystem::path cachedDir;
 
 		if (cachedDir.empty()) {
@@ -105,32 +77,32 @@ namespace Util {
 		return cachedDir;
 	}
 
-	std::filesystem::path GetMCMPath () {
+	std::filesystem::path GetMCMDir () {
 		static std::filesystem::path cachedDir;
 
 		if (cachedDir.empty()) {
-			cachedDir = GetGamePath() / "Data/MCM";
+			cachedDir = GetGameDir() / "Data/MCM";
 		}
 
 		return cachedDir;
 	}
 
-	std::filesystem::path GetSystemConfigPath (std::string_view stem) {
-		auto mcmPath = GetMCMPath();
+	std::filesystem::path GetSystemConfigFile (std::string_view stem) {
+		auto mcmPath = GetMCMDir();
 		return mcmPath / "Config" / stem / "settings.ini";
 	}
 
-	std::filesystem::path GetUserConfigPath (std::string_view stem) {
-		auto mcmPath = GetMCMPath();
+	std::filesystem::path GetUserConfigFile (std::string_view stem) {
+		auto mcmPath = GetMCMDir();
 
 		return mcmPath / "Settings" / (std::string(stem) + ".ini");
 	}
 
-	std::filesystem::path GetUserLogPath (std::string_view stem) {
+	std::filesystem::path GetUserLogFile (std::string_view stem) {
 		static std::filesystem::path cachedDir;
 
 		if (cachedDir.empty()) {
-			cachedDir = GetMyDocumentsPath() / "F4SE";
+			cachedDir = GetMyDocumentsDir() / "F4SE";
 		}
 
 		std::string fileNameLog;
@@ -138,6 +110,47 @@ namespace Util {
 		fileNameLog += ".log";
 
 		return cachedDir / fileNameLog;
+	}
+
+	template<class... Args>
+	bool CallGlobalFunctionNoWait (std::string_view scriptName, std::string_view functionName, Args&&... args) {
+		auto* gameVM = RE::GameVM::GetSingleton();
+		auto vm = gameVM ? gameVM->GetVM() : nullptr;
+		if (!vm) return false;
+
+		auto scriptNameStr = std::string(scriptName);
+		auto functionNameStr = std::string(functionName);
+		RE::BSFixedString scriptNameBS(scriptNameStr.c_str());
+		RE::BSFixedString functionNameBS(functionNameStr.c_str());
+
+#if GAME_VERSION == 1
+		auto packedArgs = RE::BSScript::detail::FunctionArgs { vm.get(), std::forward<Args>(args)... };
+		return vm
+			->DispatchStaticCall(scriptNameBS, functionNameBS, RE::BSScript::detail::CreateThreadScrapFunction(packedArgs), nullptr);
+#else
+		return vm->DispatchStaticCall(scriptNameBS, functionNameBS, nullptr, std::forward<Args>(args)...);
+#endif
+	}
+
+	template<class... Args>
+	bool CallFunctionNoWait (RE::TESForm* self, std::string_view scriptName, std::string_view functionName, Args&&... args) {
+		if (!self) return false;
+
+		auto* gameVM = RE::GameVM::GetSingleton();
+		auto vm = gameVM ? gameVM->GetVM() : nullptr;
+		if (!vm) return false;
+
+		auto scriptNameStr = std::string(scriptName);
+		auto functionNameStr = std::string(functionName);
+		RE::BSFixedString scriptNameBS(scriptNameStr.c_str());
+		RE::BSFixedString functionNameBS(functionNameStr.c_str());
+
+		auto& handlePolicy = vm->GetObjectHandlePolicy();
+		auto objectTypeID = static_cast<std::uint32_t>(self->GetFormType());
+		auto objectHandle = handlePolicy.GetHandleForObject(objectTypeID, self);
+		if (objectHandle == handlePolicy.EmptyHandle()) return false;
+
+		return vm->DispatchMethodCall(objectHandle, scriptNameBS, functionNameBS, nullptr, std::forward<Args>(args)...);
 	}
 
 	spdlog::level::level_enum level_from_str (std::string_view level) {
@@ -170,16 +183,28 @@ namespace Util {
 		return logger;
 	}
 
-	std::string SanitizeFileName (std::string_view input, bool replaceUnderscores) {
+	std::string SanitizeFileName (std::string_view input) {
 		static const std::regex invalid_re(R"([<>:"/\\|?*\x00-\x1F])");
 		static const std::regex multi_space_re(R"(\s+)");
 		static const std::regex trim_re(R"(^\s+|\s+$)");
-		static const std::regex underscore_re(R"(_+)");
 
-		auto safe = std::string(input);
+		std::string safe;
 
-		if (replaceUnderscores) safe = std::regex_replace(safe, underscore_re, std::string(" "));
+		// First, replace some common ASCII punctuation with visually-similar
+		// Unicode alternatives so we preserve the appearance while avoiding
+		// filesystem/reserved-character issues. Support: ?  <  >  :
+		for (unsigned char ch : input) {
+			switch (ch) {
+				case '?': safe += "？"; break; // U+FF1F FULLWIDTH QUESTION MARK
+				case '<': safe += "＜"; break; // U+FF1C FULLWIDTH LESS-THAN
+				case '>': safe += "＞"; break; // U+FF1E FULLWIDTH GREATER-THAN
+				case ':': safe += "："; break; // U+FF1A FULLWIDTH COLON
+				default: safe.push_back(static_cast<char>(ch)); break;
+			}
+		}
 
+		// Fallback: replace any remaining invalid characters with a space,
+		// then collapse whitespace and trim.
 		safe = std::regex_replace(safe, invalid_re, std::string(" "));
 		safe = std::regex_replace(safe, multi_space_re, std::string(" "));
 		safe = std::regex_replace(safe, trim_re, std::string(""));
@@ -187,36 +212,59 @@ namespace Util {
 		return safe;
 	}
 
-	std::shared_ptr<CSimpleIniA> LoadIni (std::string_view userId) {
-		auto ini = std::make_shared<CSimpleIniA>();
-		ini->SetUnicode(true);
-		if (userId.empty()) return ini;
+	std::string SanitizeSaveName (std::string_view input) {
+		static const std::regex underscore_re(R"(_+)");
+		static const std::regex hyphen_re(R"(-+)");
 
-		auto systemPath = GetSystemConfigPath(userId);
-		ini->LoadFile(systemPath.c_str());
-		auto userPath = GetUserConfigPath(userId);
-		ini->LoadFile(userPath.c_str());
-		return ini;
+		auto safe = SanitizeFileName(input);
+
+		// Replace underscores and ASCII hyphens with visually-similar Unicode
+		// characters so save names don't contain '_' or '-'.
+		// '_' -> U+FF3F FULLWIDTH LOW LINE (＿)
+		safe = std::regex_replace(safe, underscore_re, std::string("＿"));
+		// '-' -> U+2010 HYPHEN (‐)
+		safe = std::regex_replace(safe, hyphen_re, std::string("‐"));
+
+		return safe;
 	}
 
-	std::string ReadIni (
-		std::shared_ptr<CSimpleIniA> ini,
+	std::shared_ptr<CSimpleIniA> GetIniPtr (std::string_view userId) {
+		auto [it, inserted] = g_iniMap.emplace(userId, nullptr);
+		if (inserted) {
+			it->second = std::make_shared<CSimpleIniA>();
+			it->second->SetUnicode(true);
+		}
+		return it->second;
+	}
+
+	void LoadIni (std::string_view userId) {
+		auto ini = GetIniPtr(userId);
+		ini->Reset();
+
+		auto systemPath = GetSystemConfigFile(userId);
+		ini->LoadFile(systemPath.c_str());
+		auto userPath = GetUserConfigFile(userId);
+		ini->LoadFile(userPath.c_str());
+	}
+
+	std::string GetIniString (
+		std::string_view userId,
 		std::string_view section,
 		std::string_view key,
 		std::string_view defaultValue = ""
 	) {
-		if (!ini) return Trim(defaultValue);
+		auto ini = GetIniPtr(userId);
 
 		const std::string section_s { section };
 		const std::string key_s { key };
 
-		if (const auto* val = ini->GetValue(section_s.c_str(), key_s.c_str())) return Trim(val);
+		if (const auto* val = ini->GetValue(section_s.c_str(), key_s.c_str())) return val;
 
-		return Trim(defaultValue);
+		return std::string(defaultValue);
 	}
 
-	bool ReadIniBool (std::shared_ptr<CSimpleIniA> ini, std::string_view section, std::string_view key, bool defaultValue = false) {
-		auto val = ReadIni(ini, section, key);
+	bool GetIniBool (std::string_view userId, std::string_view section, std::string_view key, bool defaultValue = false) {
+		auto val = GetIniString(userId, section, key);
 		if (val.empty()) return defaultValue;
 
 		val = ToLower(val);
@@ -227,22 +275,22 @@ namespace Util {
 		return defaultValue;
 	}
 
-	int32_t ReadIniInt (
-		std::shared_ptr<CSimpleIniA> ini,
+	int32_t GetIniInt (
+		std::string_view userId,
 		std::string_view section,
 		std::string_view key,
 		int32_t defaultValue = 0,
 		int32_t min = std::numeric_limits<int32_t>::min(),
 		int32_t max = std::numeric_limits<int32_t>::max()
 	) {
-		auto raw = ReadIni(ini, section, key);
+		auto raw = GetIniString(userId, section, key);
 		if (raw.empty()) return std::clamp<int32_t>(defaultValue, min, max);
 
 		auto val = ToLower(raw);
 
 		// Handle boolean-like values
-		if (val == "true" || val == "yes") return std::clamp<int32_t>(1, min, max);
-		if (val == "false" || val == "no") return std::clamp<int32_t>(0, min, max);
+		if (val == "1" || val == "true" || val == "yes") return std::clamp<int32_t>(1, min, max);
+		if (val == "0" || val == "false" || val == "no") return std::clamp<int32_t>(0, min, max);
 
 		// Prepare numeric parse (support hex 0x...)
 		int base = 10;
@@ -270,50 +318,107 @@ namespace Util {
 		return result;
 	}
 
-	void WriteIni (std::string_view userId, std::string_view section, std::string_view key, std::string_view value) {
-		if (userId.empty()) return;
+	float GetIniFloat (
+		std::string_view userId,
+		std::string_view section,
+		std::string_view key,
+		float defaultValue = 0.0F,
+		float min = std::numeric_limits<float>::lowest(),
+		float max = std::numeric_limits<float>::max()
+	) {
+		auto raw = GetIniString(userId, section, key);
+		if (raw.empty()) return std::clamp<float>(defaultValue, min, max);
+
+		auto val = ToLower(raw);
+
+		// Handle boolean-like values
+		if (val == "1" || val == "true" || val == "yes") return std::clamp<float>(1.0F, min, max);
+		if (val == "0" || val == "false" || val == "no") return std::clamp<float>(0.0F, min, max);
+
+		float parsed = 0.0F;
+		try {
+			parsed = std::stof(raw);
+		} catch (...) {
+			return std::clamp<float>(defaultValue, min, max);
+		}
+
+		if (parsed < min) return min;
+		if (parsed > max) return max;
+		return parsed;
+	}
+
+	void SetIniString (std::string_view userId, std::string_view section, std::string_view key, std::string_view value) {
+		auto ini = GetIniPtr(userId);
 
 		const std::string section_s { section };
 		const std::string key_s { key };
 		const std::string value_s { value };
 
-		auto userPath = GetUserConfigPath(userId);
+		ini->SetValue(section_s.c_str(), key_s.c_str(), value_s.c_str());
+	}
 
-		CSimpleIniA ini;
-		ini.SetUnicode(true);
-		ini.LoadFile(userPath.c_str());
+	void SetIniBool (std::string_view userId, std::string_view section, std::string_view key, bool value) {
+		SetIniString(userId, section, key, value ? "true" : "false");
+	}
 
-		if (value_s.empty()) {
-			ini.Delete(section_s.c_str(), key_s.c_str(), true);
-		} else {
-			ini.SetValue(section_s.c_str(), key_s.c_str(), value_s.c_str());
+	void SetIniInt (std::string_view userId, std::string_view section, std::string_view key, int32_t value) {
+		SetIniString(userId, section, key, std::to_string(value));
+	}
+
+	void SetIniFloat (std::string_view userId, std::string_view section, std::string_view key, float value) {
+		SetIniString(userId, section, key, std::to_string(value));
+	}
+
+	void SaveIni (std::string_view userId) {
+		auto systemIni = std::make_shared<CSimpleIniA>();
+		systemIni->SetUnicode(true);
+
+		auto systemPath = GetSystemConfigFile(userId);
+		systemIni->LoadFile(systemPath.c_str());
+
+		auto userIni = std::make_shared<CSimpleIniA>();
+		userIni->SetUnicode(true);
+
+		CSimpleIniA::TNamesDepend sections;
+
+		auto ini = GetIniPtr(userId);
+
+		ini->GetAllSections(sections);
+
+		for (const auto& sectionEntry : sections) {
+			if (!sectionEntry.pItem) continue;
+
+			const char* section = sectionEntry.pItem;
+			CSimpleIniA::TNamesDepend keys;
+			ini->GetAllKeys(section, keys);
+
+			for (const auto& keyEntry : keys) {
+				if (!keyEntry.pItem) continue;
+
+				const char* key = keyEntry.pItem;
+				const char* valueRaw = ini->GetValue(section, key);
+				if (!valueRaw) continue;
+				const char* systemValueRaw = systemIni->GetValue(section, key);
+
+				if (systemValueRaw && std::strcmp(valueRaw, systemValueRaw) == 0) continue;
+
+				userIni->SetValue(section, key, valueRaw);
+			}
 		}
 
-		ini.SaveFile(userPath.c_str());
-	}
-
-	void WriteIniBool (std::string_view userId, std::string_view section, std::string_view key, bool value) {
-		WriteIni(userId, section, key, value ? "true" : "false");
-	}
-
-	void WriteIniInt (std::string_view userId, std::string_view section, std::string_view key, int32_t value) {
-		auto str = std::to_string(value);
-		WriteIni(userId, section, key, str);
+		auto userPath = GetUserConfigFile(userId);
+		std::filesystem::create_directories(userPath.parent_path());
+		userIni->SaveFile(userPath.string().c_str());
 	}
 
 	std::shared_ptr<spdlog::logger> GetLogger (std::string_view userId) {
-		if (userId.empty()) return nullptr;
-
-		const std::string userId_s { userId };
-
-		auto logger = spdlog::get(userId_s);
+		auto logger = spdlog::get(std::string(userId));
 
 		if (!logger) {
-			auto ini = LoadIni(userId);
-			auto logLevel = ToLower(ReadIni(ini, "Logging", "Level"));
+			auto logLevel = ToLower(GetIniString(userId, "Logging", "Level"));
 
-			auto fullPath = GetUserLogPath(userId);
-			logger = CreateLogger(userId_s, fullPath, logLevel);
+			auto fullPath = GetUserLogFile(userId);
+			logger = CreateLogger(userId, fullPath, logLevel);
 		}
 
 		return logger;

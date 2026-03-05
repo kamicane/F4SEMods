@@ -1,0 +1,32 @@
+{
+  "modName": "RotatingSaves",
+  "keybinds": [
+    {
+      "id": "rot_save",
+      "desc": "New rotating save",
+      "action": {
+        "type": "CallGlobalFunction",
+        "script": "RotatingSaves",
+        "function": "SaveNextSlot"
+      }
+    },
+    {
+      "id": "rot_save_named",
+      "desc": "New named save",
+      "action": {
+        "type": "CallGlobalFunction",
+        "script": "RotatingSaves",
+        "function": "ShowSaveMenu"
+      }
+    },
+    {
+      "id": "rot_load_last",
+      "desc": "Load last save",
+      "action": {
+        "type": "CallGlobalFunction",
+        "script": "RotatingSaves",
+        "function": "LoadLastSave"
+      }
+    }
+  ]
+}

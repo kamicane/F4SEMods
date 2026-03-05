@@ -2,13 +2,10 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "x64_OG",
-      "displayName": "x64 (CommonLibF4_OG)",
+      "name": "x64",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build64_OG",
       "cacheVariables": {
-        "COMMONLIBF4_VARIANT": "OG",
         "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
@@ -16,58 +13,82 @@
       }
     },
     {
-      "name": "x64_AE",
-      "displayName": "x64 (CommonLibF4_AE)",
+      "name": "RotatingSaves",
+      "displayName": "Rotating Saves",
+      "inherits": "x64",
       "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build64_AE",
       "cacheVariables": {
-        "COMMONLIBF4_VARIANT": "AE",
-        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+        "PROJECT_ID": "RotatingSaves",
+        "PROJECT_VERSION": "2.0.0"
       }
     },
     {
-      "name": "SaveUtil-AE",
-      "displayName": "SaveUtil (AE)",
-      "inherits": "x64_AE",
-      "binaryDir": "${sourceDir}/build/SaveUtil-AE",
+      "name": "RotatingSaves_OG",
+      "inherits": "RotatingSaves",
+      "displayName": "Rotating Saves (OG)",
+      "binaryDir": "${sourceDir}/build/RotatingSaves_OG",
       "cacheVariables": {
-        "PROJECT_ID": "SaveUtil",
-        "PROJECT_VERSION": "1.0.0"
+        "COMMONLIBF4_VARIANT": "OG"
       }
     },
     {
-      "name": "SaveUtil-OG",
-      "displayName": "SaveUtil (OG)",
-      "inherits": "x64_OG",
-      "binaryDir": "${sourceDir}/build/SaveUtil-OG",
+      "name": "RotatingSaves_AE",
+      "inherits": "RotatingSaves",
+      "displayName": "Rotating Saves (AE)",
+      "binaryDir": "${sourceDir}/build/RotatingSaves_AE",
       "cacheVariables": {
-        "PROJECT_ID": "SaveUtil",
-        "PROJECT_VERSION": "1.0.0"
+        "COMMONLIBF4_VARIANT": "AE"
       }
     },
     {
-      "name": "ConsoleHistory-AE",
-      "displayName": "ConsoleHistory (AE)",
-      "inherits": "x64_AE",
-      "binaryDir": "${sourceDir}/build/ConsoleHistory-AE",
+      "name": "ConsoleHistory",
+      "displayName": "Console History",
+      "inherits": "x64",
+      "hidden": true,
       "cacheVariables": {
         "PROJECT_ID": "ConsoleHistory",
-        "PROJECT_VERSION": "1.0.0"
+        "PROJECT_VERSION": "1.2.0"
       }
     },
     {
-      "name": "ConsoleHistory-OG",
-      "displayName": "ConsoleHistory (OG)",
-      "inherits": "x64_OG",
-      "binaryDir": "${sourceDir}/build/ConsoleHistory-OG",
+      "name": "ConsoleHistory_OG",
+      "inherits": "ConsoleHistory",
+      "displayName": "Console History (OG)",
+      "binaryDir": "${sourceDir}/build/ConsoleHistory_OG",
       "cacheVariables": {
-        "PROJECT_ID": "ConsoleHistory",
-        "PROJECT_VERSION": "1.0.0"
+        "COMMONLIBF4_VARIANT": "OG"
       }
+    },
+    {
+      "name": "ConsoleHistory_AE",
+      "inherits": "ConsoleHistory",
+      "displayName": "Console History (AE)",
+      "binaryDir": "${sourceDir}/build/ConsoleHistory_AE",
+      "cacheVariables": {
+        "COMMONLIBF4_VARIANT": "AE"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "RotatingSaves_OG",
+      "displayName": "RotatingSaves (OG)",
+      "configurePreset": "RotatingSaves_OG"
+    },
+    {
+      "name": "RotatingSaves_AE",
+      "displayName": "RotatingSaves (AE)",
+      "configurePreset": "RotatingSaves_AE"
+    },
+    {
+      "name": "ConsoleHistory_OG",
+      "displayName": "Console History (OG)",
+      "configurePreset": "ConsoleHistory_OG"
+    },
+    {
+      "name": "ConsoleHistory_AE",
+      "displayName": "Console History (AE)",
+      "configurePreset": "ConsoleHistory_AE"
     }
   ]
 }

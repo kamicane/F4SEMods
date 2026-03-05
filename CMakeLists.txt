@@ -10,25 +10,27 @@ macro(set_from_environment VARIABLE)
   endif()
 endmacro()
 
-set(OutputPath "C:/MO2/Fallout4/mods")
+set(PROJECT_DIR "${CMAKE_SOURCE_DIR}/Projects/${PROJECT_ID}")
 
-set(CommonLibF4Path "${CMAKE_SOURCE_DIR}/extern/CommonLibF4_${COMMONLIBF4_VARIANT}")
+set(COMMONLIBF4_DIR "${CMAKE_SOURCE_DIR}/extern/CommonLibF4_${COMMONLIBF4_VARIANT}")
 
 project(${PROJECT_ID} VERSION ${PROJECT_VERSION} LANGUAGES CXX)
 
-add_subdirectory(${CommonLibF4Path} CommonLibF4)
+add_subdirectory(${COMMONLIBF4_DIR} CommonLibF4)
 
 find_package(spdlog REQUIRED CONFIG)
 find_package(fmt REQUIRED CONFIG)
+find_package(eventpp CONFIG REQUIRED)
 
-# single translation unit that provides the F4SE exports
+find_path(SIMPLEINI_INCLUDE_DIRS "ConvertUTF.c")
+
 set(SOURCES
   ${CMAKE_SOURCE_DIR}/src/pch.cpp
   ${CMAKE_SOURCE_DIR}/src/main.cpp
 )
 
 source_group(
-  TREE ${CMAKE_CURRENT_SOURCE_DIR}
+  TREE ${CMAKE_SOURCE_DIR}
   FILES ${SOURCES}
 )
 
@@ -37,6 +39,18 @@ add_library(
   SHARED
   ${SOURCES}
 )
+
+# Generate a configured header for in-code access to the project version
+set(VERSION_HEADER_IN "${CMAKE_SOURCE_DIR}/cmake/project.h.in")
+# generate project.h from project.h.in so code can include <project.h>
+set(VERSION_HEADER "${CMAKE_BINARY_DIR}/project.h")
+configure_file(${VERSION_HEADER_IN} ${VERSION_HEADER} @ONLY)
+target_include_directories(${PROJECT_ID} PRIVATE ${CMAKE_BINARY_DIR})
+
+set(VERSION_RC_IN "${CMAKE_SOURCE_DIR}/cmake/version.rc.in")
+set(VERSION_RC "${CMAKE_BINARY_DIR}/${PROJECT_ID}_version.rc")
+configure_file(${VERSION_RC_IN} ${VERSION_RC} @ONLY)
+target_sources(${PROJECT_ID} PRIVATE ${VERSION_RC})
 
 target_compile_definitions(
   ${PROJECT_ID}
@@ -57,27 +71,34 @@ target_compile_features(
   cxx_std_23
 )
 
+target_include_directories(${PROJECT_ID} PRIVATE ${SIMPLEINI_INCLUDE_DIRS})
+
 target_include_directories(
   ${PROJECT_ID}
   PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_SOURCE_DIR}/${PROJECT_ID}/include
+  ${CMAKE_SOURCE_DIR}/include
+  ${PROJECT_DIR}/include
 )
 
 target_precompile_headers(
   ${PROJECT_ID}
   PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/pch.hpp"
+  "${CMAKE_SOURCE_DIR}/include/pch.h"
 )
 
-target_link_libraries(
-  ${PROJECT_ID}
-  PRIVATE
-  CommonLibF4::CommonLibF4
-  # use commonLib provided fmt + spdlog or compiler complains idk
-  # fmt::fmt-header-only
-  # spdlog::spdlog_header_only
-)
+function(target_link_libraries_system target lib)
+  # Get the include directories of the library
+  get_target_property(_includes ${lib} INTERFACE_INCLUDE_DIRECTORIES)
+  if(_includes)
+    target_include_directories(${target} SYSTEM PRIVATE ${_includes})
+  endif()
+
+  # Link the library normally
+  target_link_libraries(${target} PRIVATE ${lib})
+endfunction()
+
+target_link_libraries_system(${PROJECT_ID} CommonLibF4::CommonLibF4)
+target_link_libraries_system(${PROJECT_ID} eventpp::eventpp)
 
 if(COMMONLIBF4_VARIANT STREQUAL "OG")
   target_compile_definitions(${PROJECT_ID} PRIVATE "GAME_VERSION=1")
@@ -98,31 +119,19 @@ target_compile_definitions(
   NOSERVICE
 )
 
-target_include_directories(
-  ${PROJECT_ID}
-  SYSTEM
-  PRIVATE
-  $<TARGET_PROPERTY:CommonLibF4::CommonLibF4,INTERFACE_INCLUDE_DIRECTORIES>
+file(GLOB PROJECT_HEADERS CONFIGURE_DEPENDS "${PROJECT_DIR}/include/*.hpp")
+set_source_files_properties(${PROJECT_HEADERS} PROPERTIES LANGUAGE CXX HEADER_FILE_ONLY OFF)
+
+add_library(CLANGD_PROJECT_HEADERS OBJECT EXCLUDE_FROM_ALL ${PROJECT_HEADERS})
+target_compile_definitions(CLANGD_PROJECT_HEADERS PRIVATE $<TARGET_PROPERTY:${PROJECT_ID},COMPILE_DEFINITIONS>)
+target_include_directories(CLANGD_PROJECT_HEADERS PRIVATE $<TARGET_PROPERTY:${PROJECT_ID},INCLUDE_DIRECTORIES>)
+target_compile_options(CLANGD_PROJECT_HEADERS PRIVATE $<TARGET_PROPERTY:${PROJECT_ID},COMPILE_OPTIONS>)
+target_precompile_headers(CLANGD_PROJECT_HEADERS PRIVATE "${CMAKE_SOURCE_DIR}/include/pch.h")
+
+set(OUTPUT_DIR_F4SE "${PROJECT_DIR}/F4SE/Plugins")
+
+add_custom_command(TARGET ${PROJECT_ID} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT_DIR_F4SE}"
+  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_ID}> "${OUTPUT_DIR_F4SE}"
+  COMMAND ${CMAKE_COMMAND} -E echo "Built ${PROJECT_ID} ${COMMONLIBF4_VARIANT}"
 )
-
-find_package(simpleini CONFIG QUIET)
-if(TARGET simpleini::simpleini)
-  target_link_libraries(${PROJECT_ID} PRIVATE simpleini::simpleini)
-else()
-  if(DEFINED VCPKG_ROOT AND DEFINED VCPKG_TARGET_TRIPLET)
-    find_path(SIMPLEINI_INCLUDE_DIR SimpleIni.h HINTS "${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/include")
-    if(SIMPLEINI_INCLUDE_DIR)
-      target_include_directories(${PROJECT_ID} PRIVATE SYSTEM "${SIMPLEINI_INCLUDE_DIR}")
-    endif()
-  endif()
-endif()
-
-if(EXISTS "${OutputPath}")
-  set(POSTBUILD_OUTPUT_DIR "${OutputPath}/${PROJECT_ID} ${COMMONLIBF4_VARIANT}/F4SE/Plugins")
-  add_custom_command(TARGET ${PROJECT_ID} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${POSTBUILD_OUTPUT_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_ID}> "${POSTBUILD_OUTPUT_DIR}"
-  )
-else()
-  message(WARNING "OutputPath '${OutputPath}' does not exist; skipping post-build copy")
-endif()
